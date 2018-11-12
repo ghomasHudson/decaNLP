@@ -50,7 +50,7 @@ def log(rank='main'):
 
 
 def prepare_data(args, field, logger):
-
+    """Grab datasets"""
     if field is None: 
         logger.info(f'Constructing field')
         FIELD = torchtext.data.ReversibleField(batch_first=True, init_token='<init>', eos_token='<eos>', lower=args.lower, include_lengths=True)
@@ -109,6 +109,7 @@ def prepare_data(args, field, logger):
 
 
 def to_iter(args, world_size, val_batch_size, data, device, train=True, token_testing=False, sort=None):
+    """Convert a dataset into a texttorch dataset"""
     sort = sort if not token_testing else True
     shuffle = None if not token_testing else False
     reverse = args.reverse
@@ -121,11 +122,14 @@ def to_iter(args, world_size, val_batch_size, data, device, train=True, token_te
 
 
 def get_learning_rate(i, args):
+    """Learning rate schedual"""
+    #looks pretty similar to lr from transformer paper
     return 0.1 * 10 / math.sqrt(args.dimension) * min(
         1 / math.sqrt(i), i / (args.warmup * math.sqrt(args.warmup)))
 
 
 def step(model, batch, opt, iteration, field, task, lr=None, grad_clip=None, writer=None, it=None):
+    """one training pass"""
     model.train()
     opt.zero_grad()
     loss, predictions = model(batch)
@@ -140,7 +144,7 @@ def step(model, batch, opt, iteration, field, task, lr=None, grad_clip=None, wri
 
 def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_size=1, 
     log_every=10, val_every=100, save_every=1000, rounds=False, val_iters=[], writer=None, start_iteration=1, rnd=1):
-    """main training function"""
+    """main training loops"""
 
     logger = log(rank) 
     local_loss, num_examples, len_contexts, len_answers, iteration = 0, 0, 0, 0, start_iteration
@@ -275,28 +279,33 @@ def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_
 
 
 def run(args, run_args, rank=0, world_size=1):
+    """Create and train model"""
     device = set_seed(args, rank=rank)
     logger = initialize_logger(args, rank)
     field, train_sets, val_sets, save_dict = run_args
 
     logger.start = time.time()
 
+    #turn datasets into torchtext iterators
     logger.info(f'Preparing iterators')
     train_iters = [(name, to_iter(args, world_size, tok, x, device, token_testing=args.token_testing)) 
                       for name, x, tok in zip(args.train_tasks, train_sets, args.train_batch_tokens)]
     val_iters = [(name, to_iter(args, world_size, tok, x, device, train=False, token_testing=args.token_testing, sort=False if 'sql' in name else None))
                     for name, x, tok in zip(args.val_tasks, val_sets, args.val_batch_size)]
 
+    #tensorboard logging
     if hasattr(args, 'tensorboard') and args.tensorboard:
         logger.info(f'Initializing Writer')
         writer = SummaryWriter(log_dir=args.log_dir)
     else:
         writer = None
 
+    #create models, optimisers
     model = init_model(args, field, logger, world_size, device)
     opt = init_opt(args, model) 
     start_iteration = 1
 
+    #load previous weights
     if save_dict is not None:
         logger.info(f'Loading model from {os.path.join(args.save, args.load)}')
         save_dict = torch.load(os.path.join(args.save, args.load))
@@ -306,6 +315,7 @@ def run(args, run_args, rank=0, world_size=1):
             opt.load_state_dict(torch.load(os.path.join(args.save, f'{os.path.splitext(args.load)[0]}_rank_{rank}_optim.pth')))
             start_iteration = int(os.path.splitext(os.path.basename(args.load))[0].split('_')[1])
 
+    #train model
     logger.info(f'Begin Training')
     train(args, model, opt, train_iters, args.train_iterations, field, val_iters=val_iters, 
         rank=rank, world_size=world_size, 
@@ -314,6 +324,7 @@ def run(args, run_args, rank=0, world_size=1):
 
 
 def init_model(args, field, logger, world_size, device):
+    """Create the model"""
     logger.info(f'Initializing {args.model}')
     Model = getattr(models, args.model) 
     model = Model(field, args)
@@ -331,13 +342,13 @@ def init_model(args, field, logger, world_size, device):
 
 
 def init_opt(args, model):
+    """Initialise the optimiser"""
     opt = None
-    if args.transformer_lr:
+    if args.transformer_lr: #use the transformer lr stratergy
         opt = torch.optim.Adam(model.params, betas=(0.9, 0.98), eps=1e-9)
     else:
         opt = torch.optim.Adam(model.params, betas=(args.beta0, 0.999))
     return opt
-
 
 def main():
     args = arguments.parse()
@@ -347,13 +358,17 @@ def main():
     logger = initialize_logger(args)
     logger.info(f'Arguments:\n{pformat(vars(args))}')
 
+    #if loading from a checkpoint
     field, save_dict = None, None
     if args.load is not None:
         logger.info(f'Loading field from {os.path.join(args.save, args.load)}')
         save_dict = torch.load(os.path.join(args.save, args.load))
         field = save_dict['field']
+
+    #load the data
     field, train_sets, val_sets = prepare_data(args, field, logger)
 
+    #create and train the model
     run_args = (field, train_sets, val_sets, save_dict)
     if len(args.devices) > 1:
         logger.info(f'Multiprocessing')
