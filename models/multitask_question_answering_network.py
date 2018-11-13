@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""Example Google style docstrings.
+
+This file defines the MQAN for the decaNLP task
+"""
+
+
 import os
 import math
 import numpy as np
@@ -27,6 +34,12 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
         def dp(args):
             return args.dropout_ratio if args.rnn_layers > 1 else 0.
 
+
+        ###############################
+        # ENCODER
+
+        #***************************************
+        #Independent Encoding
         self.encoder_embeddings = Embedding(field, args.dimension, 
             dropout=args.dropout_ratio, project=not args.cove)
         self.decoder_embeddings = Embedding(field, args.dimension, 
@@ -42,25 +55,38 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
      
         self.bilstm_before_coattention = PackedLSTM(args.dimension,  args.dimension,
             batch_first=True, bidirectional=True, num_layers=1, dropout=0)
+        
+
+        #***************************************
+        #Dual co-attention
         self.coattention = CoattentiveLayer(args.dimension, dropout=0.3)
         dim = 2*args.dimension + args.dimension + args.dimension
 
+        # - split
         self.context_bilstm_after_coattention = PackedLSTM(dim, args.dimension,
-            batch_first=True, dropout=dp(args), bidirectional=True, 
-            num_layers=args.rnn_layers)
-        self.self_attentive_encoder_context = TransformerEncoder(args.dimension, args.transformer_heads, args.transformer_hidden, args.transformer_layers, args.dropout_ratio)
-        self.bilstm_context = PackedLSTM(args.dimension, args.dimension,
             batch_first=True, dropout=dp(args), bidirectional=True, 
             num_layers=args.rnn_layers)
 
         self.question_bilstm_after_coattention = PackedLSTM(dim, args.dimension,
             batch_first=True, dropout=dp(args), bidirectional=True, 
             num_layers=args.rnn_layers)
+
+        #***************************************
+        #Self attention + Final Encoding
+        #   - context
+        self.self_attentive_encoder_context = TransformerEncoder(args.dimension, args.transformer_heads, args.transformer_hidden, args.transformer_layers, args.dropout_ratio)
+        self.bilstm_context = PackedLSTM(args.dimension, args.dimension,
+            batch_first=True, dropout=dp(args), bidirectional=True, 
+            num_layers=args.rnn_layers)
+
+        #   - question
         self.self_attentive_encoder_question = TransformerEncoder(args.dimension, args.transformer_heads, args.transformer_hidden, args.transformer_layers, args.dropout_ratio)
         self.bilstm_question = PackedLSTM(args.dimension, args.dimension,
             batch_first=True, dropout=dp(args), bidirectional=True, 
             num_layers=args.rnn_layers)
 
+        ###############################
+        # DECODER
         self.self_attentive_decoder = TransformerDecoder(args.dimension, args.transformer_heads, args.transformer_hidden, args.transformer_layers, args.dropout_ratio)
         self.dual_ptr_rnn_decoder = DualPtrRNNDecoder(args.dimension, args.dimension,
             dropout=args.dropout_ratio, num_layers=args.rnn_layers)
@@ -71,10 +97,12 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
         self.dropout = nn.Dropout(0.4)
 
     def set_embeddings(self, embeddings):
+        """Put pretrained embeddings into embedding layer"""
         self.encoder_embeddings.set_embeddings(embeddings)
         self.decoder_embeddings.set_embeddings(embeddings)
 
     def forward(self, batch):
+        """Forward pass of the network"""
         context, context_lengths, context_limited    = batch.context,  batch.context_lengths,  batch.context_limited
         question, question_lengths, question_limited = batch.question, batch.question_lengths, batch.question_limited
         answer, answer_lengths, answer_limited       = batch.answer,   batch.answer_lengths,   batch.answer_limited
@@ -84,12 +112,17 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
             return limited_idx_to_full_idx[x]
         self.map_to_full = map_to_full
 
+
+        #***************************************
+        #Independent Encoding
         context_embedded = self.encoder_embeddings(context)
         question_embedded = self.encoder_embeddings(question)
         if self.args.cove:
             context_embedded = self.project_cove(torch.cat([self.cove(context_embedded[:, :, -300:], context_lengths), context_embedded], -1).detach())
             question_embedded = self.project_cove(torch.cat([self.cove(question_embedded[:, :, -300:], question_lengths), question_embedded], -1).detach())
 
+        #***************************************
+        #Alignment + Dual co-attention
         context_encoded = self.bilstm_before_coattention(context_embedded, context_lengths)[0]
         question_encoded = self.bilstm_before_coattention(question_embedded, question_lengths)[0]
 
@@ -98,12 +131,16 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
 
         coattended_context, coattended_question = self.coattention(context_encoded, question_encoded, context_padding, question_padding)
 
+        #***************************************
+        #Self attention + Final Encoding
+        #   - context
         context_summary = torch.cat([coattended_context, context_encoded, context_embedded], -1)
         condensed_context, _ = self.context_bilstm_after_coattention(context_summary, context_lengths)
         self_attended_context = self.self_attentive_encoder_context(condensed_context, padding=context_padding)
         final_context, (context_rnn_h, context_rnn_c) = self.bilstm_context(self_attended_context[-1], context_lengths)
         context_rnn_state = [self.reshape_rnn_state(x) for x in (context_rnn_h, context_rnn_c)]
 
+        #   - question
         question_summary = torch.cat([coattended_question, question_encoded, question_embedded], -1)
         condensed_question, _ = self.question_bilstm_after_coattention(question_summary, question_lengths)
         self_attended_question = self.self_attentive_encoder_question(condensed_question, padding=question_padding)
@@ -150,11 +187,11 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
         context_attention, question_attention, 
         context_indices, question_indices, 
         oov_to_limited_idx):
-
+        """Get a probability distribution over the output vocab"""
         size = list(outputs.size())
 
         size[-1] = self.generative_vocab_size
-        scores = generator(outputs.view(-1, outputs.size(-1))).view(size)
+        scores = generator(outputs.view(-1, outputs.size(-1))).view(size) #run the 
         p_vocab = F.softmax(scores, dim=scores.dim()-1)
         scaled_p_vocab = vocab_pointer_switches.expand_as(p_vocab) * p_vocab
 
@@ -176,6 +213,7 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
 
 
     def greedy(self, self_attended_context, context, question, context_indices, question_indices, oov_to_limited_idx, rnn_state=None):
+        """Greedy decoding of the result"""
         B, TC, C = context.size()
         T = self.args.max_output_length
         outs = context.new_full((B, T), self.field.decoder_stoi['<pad>'], dtype=torch.long)
@@ -187,6 +225,7 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
         rnn_output, context_alignment, question_alignment = None, None, None
         for t in range(T):
             if t == 0:
+                #initialise with <init> token
                 embedding = self.decoder_embeddings(
                     self_attended_context[-1].new_full((B, 1), self.field.vocab.stoi['<init>'], dtype=torch.long), [1]*B)
             else:
@@ -205,12 +244,12 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
             probs = self.probs(self.out, rnn_output, vocab_pointer_switch, context_question_switch, 
                 context_attention, question_attention, 
                 context_indices, question_indices, 
-                oov_to_limited_idx)
-            pred_probs, preds = probs.max(-1)
+                oov_to_limited_idx) #get the prob distribution over the words
+            pred_probs, preds = probs.max(-1) #get the most likely word
             preds = preds.squeeze(1)
             eos_yet = eos_yet | (preds == self.field.decoder_stoi['<eos>'])
-            outs[:, t] = preds.cpu().apply_(self.map_to_full)
-            if eos_yet.all():
+            outs[:, t] = preds.cpu().apply_(self.map_to_full) #find the token
+            if eos_yet.all(): #if <eos> token, stop decoding
                 break
         return outs
 
