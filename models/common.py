@@ -73,6 +73,7 @@ def matmul(x, y):
 
 
 def pad_to_match(x, y):
+    '''Pads x with zeros to match length of y'''
     x_len, y_len = x.size(1), y.size(1)
     if x_len == y_len:
         return x, y
@@ -83,7 +84,9 @@ def pad_to_match(x, y):
 
 
 class LayerNorm(nn.Module):
-
+    '''
+    https://arxiv.org/pdf/1607.06450.pdf
+    '''
     def __init__(self, d_model, eps=1e-6):
         super().__init__()
         self.gamma = nn.Parameter(torch.ones(d_model))
@@ -97,7 +100,8 @@ class LayerNorm(nn.Module):
 
 
 class ResidualBlock(nn.Module):
-
+    '''Simple residual-  y = Layer(x) + x
+    '''
     def __init__(self, layer, d_model, dropout_ratio):
         super().__init__()
         self.layer = layer
@@ -109,7 +113,8 @@ class ResidualBlock(nn.Module):
 
 
 class Attention(nn.Module):
-
+    '''Generic query,key,value attention
+    '''
     def __init__(self, d_key, dropout_ratio, causal):
         super().__init__()
         self.scale = math.sqrt(d_key)
@@ -145,7 +150,8 @@ class MultiHead(nn.Module):
 
 
 class LinearReLU(nn.Module):
-
+    '''FF with ReLU followed by Linear layer
+    '''
     def __init__(self, d_model, d_hidden):
         super().__init__()
         self.feedforward = Feedforward(d_model, d_hidden, activation='relu')
@@ -156,7 +162,7 @@ class LinearReLU(nn.Module):
 
 
 class TransformerEncoderLayer(nn.Module):
-
+    '''Self attention + FF'''
     def __init__(self, dimension, n_heads, hidden, dropout):
         super().__init__()
         self.selfattn = ResidualBlock(
@@ -172,9 +178,11 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-
+    '''List of TransformerEncoderLayers'''
     def __init__(self, dimension, n_heads, hidden, num_layers, dropout):
         super().__init__()
+
+        #create num_layers TransformerEncoderLayers
         self.layers = nn.ModuleList(
             [TransformerEncoderLayer(dimension, n_heads, hidden, dropout) for i in range(num_layers)])
         self.dropout = nn.Dropout(dropout)
@@ -183,8 +191,9 @@ class TransformerEncoder(nn.Module):
         x = self.dropout(x)
         encoding = [x]
         for layer in self.layers:
+            #run through next layer
             x = layer(x, padding=padding)
-            encoding.append(x)
+            encoding.append(x) #append intermediate results
         return encoding
 
 
@@ -234,11 +243,17 @@ def mask(targets, out, squash=True, pad_idx=1):
     targets_after = targets[mask]
     return out_after, targets_after
 
-
+'''
+NOTE: Appears not to be used!!
 class Highway(torch.nn.Module):
+    """Adds a highway between Linear Layers
+    https://arxiv.org/pdf/1505.00387.pdf
+    """
     def __init__(self, d_in, activation='relu', n_layers=1):
         super(Highway, self).__init__()
         self.d_in = d_in
+
+        #make n_layers standard linear layers
         self._layers = torch.nn.ModuleList([Linear(d_in, 2 * d_in) for _ in range(n_layers)])
         for layer in self._layers:
             layer.bias[d_in:].fill_(1)
@@ -247,18 +262,26 @@ class Highway(torch.nn.Module):
     def forward(self, inputs):
         current_input = inputs
         for layer in self._layers:
-            projected_input = layer(current_input)
+
+            #Identity 
             linear_part = current_input
+
+            #Non-lin
+            projected_input = layer(current_input)
             nonlinear_part = projected_input[:, :self.d_in] if projected_input.dim() == 2 else projected_input[:, :, :self.d_in]
             nonlinear_part = self.activation(nonlinear_part)
+            
             gate = projected_input[:, self.d_in:(2 * self.d_in)] if projected_input.dim() == 2 else projected_input[:, :, self.d_in:(2 * self.d_in)]
             gate = F.sigmoid(gate)
+
+            #calc the output gate*x + (1-gate)*Layer(x)
             current_input = gate * linear_part + (1 - gate) * nonlinear_part
         return current_input
-
+'''
 
 class LinearFeedforward(nn.Module):
-
+    """FF + Linear + Dropout. 
+    Expanded is: Drop+Lin+Act+Lin+Drop"""
     def __init__(self, d_in, d_hid, d_out, activation='relu'):
         super().__init__()
         self.feedforward = Feedforward(d_in, d_hid, activation=activation)
@@ -269,7 +292,9 @@ class LinearFeedforward(nn.Module):
         return self.dropout(self.linear(self.feedforward(x)))
 
 class PackedLSTM(nn.Module):
-
+    """A wrapper class that packs input sequences and unpacks output sequences
+        - deals with variable length input without having to manually pad with zeros
+    """
     def __init__(self, d_in, d_out, bidirectional=False, num_layers=1, 
         dropout=0.0, batch_first=True):
         """A wrapper class that packs input sequences and unpacks output sequences"""
@@ -296,21 +321,24 @@ class PackedLSTM(nn.Module):
 
 
 class Linear(nn.Linear):
-
+    '''Basic linear layer (just reshapes input)'''
     def forward(self, x):
         size = x.size()
         return super().forward(
             x.contiguous().view(-1, size[-1])).view(*size[:-1], -1)
+        #contiguous() - Some operations such as transpose only change some indecies. contiguous forces a true copy of the tensor
+        #               Need to add when you get an error 'RuntimeError: input is not contiguous'
+        #view()       - Reshapes tensor. Fills values L->R. param of -1 means dimention is calculated.
 
 
 class Feedforward(nn.Module):
-
+    """Combination of Dropout + Linear + Activation"""
     def __init__(self, d_in, d_out, activation=None, bias=True, dropout=0.2):
         super().__init__()
         if activation is not None:
             self.activation = getattr(torch, activation)
         else:
-            self.activation = lambda x: x
+            self.activation = lambda x: x #no activation
         self.linear = Linear(d_in, d_out, bias=bias)
         self.dropout = nn.Dropout(dropout)
 
@@ -344,7 +372,8 @@ class Embedding(nn.Module):
         self.pretrained_embeddings[0].weight.data = w
         self.pretrained_embeddings[0].weight.requires_grad = False
 
-
+'''
+#Doesn't appear to be used
 class SemanticFusionUnit(nn.Module):
  
     def __init__(self, d, l):
@@ -359,7 +388,7 @@ class SemanticFusionUnit(nn.Module):
         g = self.g(c)
         o = g * r_hat + (1 - g) * x[0]
         return o
-
+'''
 
 class LSTMDecoderAttention(nn.Module):
     def __init__(self, dim, dot=False):
