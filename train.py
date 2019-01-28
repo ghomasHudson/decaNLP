@@ -122,10 +122,12 @@ def to_iter(args, world_size, val_batch_size, data, device, train=True, token_te
 
 
 def get_learning_rate(i, args):
+    transformer_lr = 1. / math.sqrt(args.dimension) * min(
     """Learning rate schedual"""
-    #looks pretty similar to lr from transformer paper
-    return 0.1 * 10 / math.sqrt(args.dimension) * min(
         1 / math.sqrt(i), i / (args.warmup * math.sqrt(args.warmup)))
+    if 'adam' not in args.optimizer.lower():
+        transformer_lr = transformer_lr * math.sqrt(args.dimension * args.warmup) * args.sgd_lr
+    return transformer_lr
 
 
 def step(model, batch, opt, iteration, field, task, lr=None, grad_clip=None, writer=None, it=None):
@@ -344,10 +346,13 @@ def init_model(args, field, logger, world_size, device):
 def init_opt(args, model):
     """Initialise the optimiser"""
     opt = None
-    if args.transformer_lr: #use the transformer lr stratergy
-        opt = torch.optim.Adam(model.params, betas=(0.9, 0.98), eps=1e-9)
+    if 'adam' in args.optimizer.lower():
+        if args.transformer_lr:
+            opt = torch.optim.Adam(model.params, betas=(0.9, 0.98), eps=1e-9)
+        else:
+            opt = torch.optim.Adam(model.params, betas=(args.beta0, 0.999))
     else:
-        opt = torch.optim.Adam(model.params, betas=(args.beta0, 0.999))
+        opt = torch.optim.SGD(model.params, lr=args.sgd_lr) 
     return opt
 
 def main():
