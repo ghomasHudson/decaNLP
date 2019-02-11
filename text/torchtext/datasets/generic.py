@@ -9,7 +9,7 @@ import json
 import glob
 import hashlib
 import unicodedata
-
+import numpy as np
 
 from . import sst
 from . import imdb
@@ -1524,6 +1524,112 @@ class SNLI(CQA, data.Dataset):
         return tuple(d for d in (train_data, validation_data, test_data)
                      if d is not None)
 
+###########################################
+# Custom
+
+class qaBase(CQA,data.Dataset):
+    '''Parent class for some common stuff'''
+    urls = ["Overwrite me"]
+    name = "override me"
+    dirname = "override me"
+
+    def __init__(self, path, field, subsample=None, **kwargs):
+        fields = [(x, field) for x in self.fields]
+
+        cache_name = os.path.join(os.path.dirname(path), '.cache', os.path.basename(path), str(subsample))
+        if os.path.exists(cache_name):
+            print(f'Loading cached data from {cache_name}')
+            examples = torch.load(cache_name)
+        else:
+            examples = []
+            with open(os.path.expanduser(path)) as f:
+                for line in f:
+                    example_dict = json.loads(line)
+                    ex = example_dict
+                    context, question, answer = ex['context'], ex['question'], ex['answer']
+                    context_question = get_context_question(context, question) 
+                    ex = data.Example.fromlist([context, question, answer, CONTEXT_SPECIAL, QUESTION_SPECIAL, context_question], fields)
+                    examples.append(ex)
+
+                    if subsample is not None and len(examples) >= subsample: 
+                        break
+            os.makedirs(os.path.dirname(cache_name), exist_ok=True)
+            print(f'Caching data to {cache_name}')
+            torch.save(examples, cache_name)
+
+        super().__init__(examples, fields, **kwargs)
+
+    @classmethod
+    def cache_splits(cls,path,train='train',validation='dev',test='test'):
+        raise NotImplementedError()
+
+    @classmethod
+    def splits(cls,fields,root='.data', train='train', validation='dev', test='test', **kwargs):
+        path = cls.download(root)
+        cls.cache_splits(path)
+
+        train_data = None if train is None else cls(os.path.join(path,f'{train}.jsonl'),fields,**kwargs)
+        validation_data = None if validation is None else cls(os.path.join(path,f'{validation}.jsonl'),fields,**kwargs)
+        test_data = None if test is None else cls(os.path.join(path,f'{test}.jsonl'),fields,**kwargs)
+
+        return tuple(d for d in (train_data,validation_data,test_data) if d is not None)
+
+
+class Quora(qaBase):
+    '''Dataset loader for Quora paraphrase pairs'''
+
+    urls = ['http://qim.fs.quoracdn.net/quora_duplicate_questions.tsv']
+    name = 'quora'
+    dirname = ''
+
+    def splitByPercentage(l,percentages):
+        '''splits a list, l by the % values in percentages'''
+        splits = np.cumsum(percentages)/100
+        if splits[-1] != 1: raise ValueError("Percentages don't add up to 100")
+        splits = splits[:-1]
+        splits *= len(l) #convert to indeces
+        splits += 0.5 #round up
+        splits = splits.astype(np.int)
+        return np.split(l, splits)
+
+    @classmethod
+    def cache_splits(cls,path,train='train',validation='dev',test='test'):
+        train_jsonl = os.path.expanduser(os.path.join(path, f'{train}.jsonl'))
+        if os.path.exists(train_jsonl):
+            return
+
+        #Quora dataset comes without splits so partition:
+        # - 90%-|_ 90% train
+        #       |_ 10% validate
+        #
+        # - 10% test
+        
+        filename = "quora_duplicate_questions.tsv"
+        with open(os.path.expanduser(os.path.join(path,filename))) as tsvfile:
+            
+            #Read in
+            reader = csv.DictReader(tsvfile, dialect='excel-tab')
+            examples = []
+            for row in reader:
+                ex = {'question':'Is this question a paraphrase of the context: "'+row["question1"]+'" -- yes or no?',
+                      'context':row["question2"],
+                      'answer':["no","yes"][int(row["is_duplicate"])]}
+                examples.append(ex)
+            
+            #Split
+            percents = np.array([81,9,10])
+            examples = np.array(examples)
+            train_data,val_data,test_data = cls.splitByPercentage(examples,percents)
+            
+            #save out to jsonl
+            splits = [(train,train_data.tolist()),(validation,val_data.tolist()),(test,test_data.tolist())]
+            for split in splits:
+                splitName = split[0]
+                print("***",splitName)
+                with open(os.path.expanduser(os.path.join(path,f'{splitName}.jsonl')),'a') as split_file:
+                    for line in split[1]:
+                        split_file.write(json.dumps(line)+'\n')
+                    import sys;sys.exit()
 
 class JSON(CQA, data.Dataset):
 
