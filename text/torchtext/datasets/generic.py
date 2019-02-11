@@ -1574,6 +1574,38 @@ class qaBase(CQA,data.Dataset):
 
         return tuple(d for d in (train_data,validation_data,test_data) if d is not None)
 
+class MSRPC(qaBase):
+    '''Dataset loader for Microsoft Research Paraphrase Corpus'''
+
+    urls = ['https://raw.githubusercontent.com/brmson/dataset-sts/master/data/para/msr/msr-para-test.tsv',
+            'https://raw.githubusercontent.com/brmson/dataset-sts/master/data/para/msr/msr-para-train.tsv',
+            'https://raw.githubusercontent.com/brmson/dataset-sts/master/data/para/msr/msr-para-val.tsv']
+    #note: not the official source, but easily accessible and provides val set
+    name = 'msrpc'
+    dirname = ''
+
+    @classmethod
+    def cache_splits(cls, path, train='train', validation='val', test='test'):
+        train_jsonl = os.path.expanduser(os.path.join(path, f'{train}.jsonl'))
+        if os.path.exists(train_jsonl):
+            return
+
+        base_file_name = 'msr-para-{}.tsv'
+        for split in [train, validation, test]:
+            src_file_name = base_file_name.format(split)
+            with open(os.path.expanduser(os.path.join(path, f'{split}.jsonl')), 'a') as split_file:
+                with open(os.path.expanduser(os.path.join(path, src_file_name))) as src_file:
+                    reader = csv.DictReader(src_file, dialect='excel-tab',quoting=csv.QUOTE_NONE)
+                    for ex in reader:
+                        ex = {'question':'Is this question a paraphrase of the context: "'+ex["#1 String"]+'" -- yes or no?',
+                            'context':ex["#2 String"],
+                            'answer': ["no","yes"][int(list(ex.values())[0])]}
+                        split_file.write(json.dumps(ex)+'\n')
+       
+    @classmethod
+    def splits(cls,*args,validation='val',**kwargs):
+        #Change the default validation path
+        return super().splits(*args,validation=validation,**kwargs) 
 
 class Quora(qaBase):
     '''Dataset loader for Quora paraphrase pairs'''
@@ -1629,7 +1661,8 @@ class Quora(qaBase):
                 with open(os.path.expanduser(os.path.join(path,f'{splitName}.jsonl')),'a') as split_file:
                     for line in split[1]:
                         split_file.write(json.dumps(line)+'\n')
-                    import sys;sys.exit()
+
+
 
 class JSON(CQA, data.Dataset):
 
