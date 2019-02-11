@@ -22,6 +22,67 @@ from .. import data
 CONTEXT_SPECIAL = 'Context:'
 QUESTION_SPECIAL = 'Question:'
 
+#****************************************************
+# Hooks to save as plain JSON
+
+def getStringProperties(obj):
+    '''Gets all properties of obj which are normal strings'''
+    goodProps = []
+    for prop in dir(obj):
+        if not prop.startswith('__'):
+            val = getattr(obj,prop)
+            if not callable(val):
+                if not type(val) == list:
+                    goodProps.append(prop)
+    return goodProps
+
+#hook into torch.save
+oldTorchSave = torch.save
+def tempTorchSave(obj,f):
+    '''Output to plain json before saving'''
+    #Do the origional torch save
+    oldTorchSave(obj,f)
+
+    if type(obj) == tuple:
+        #if a tuple, find a list of examples
+        for item in obj:
+            if type(item) == list and type(item[0]) == data.Example:
+                obj = item
+
+    if type(obj) == list and type(obj[0]) == data.Example:
+        #Convert to JSON
+        if type(f) == str:
+            with open(f+".jsonl",'w',encoding='utf-8') as jsonF:
+                for i,e in enumerate(obj,1):
+                    #find all the string properties of the example
+                    jsonOut = {}
+                    goodProps = getStringProperties(e)
+                    for prop in goodProps:
+                        propClean = prop.replace("Raw","")
+                        jsonOut[prop] = getattr(e,prop)
+                    jsonF.write(json.dumps(jsonOut))
+                    if i != len(obj):
+                        jsonF.write("\n")
+        else:
+            print("not file type")
+    else:
+        print("Not list of examples")
+torch.save = tempTorchSave
+
+#hook into data.Example.fromlist
+oldExampleFromList = data.Example.fromlist
+def tempExampleFromList(data, fields):
+    '''Add the raw text'''
+    example = oldExampleFromList(data, fields) #run existing method
+    #Add in the raw strings
+    example.contextRaw = data[0]
+    example.questionRaw = data[1]
+    example.answerRaw = data[2]
+    return example
+data.Example.fromlist = tempExampleFromList
+
+
+#****************************************************
 
 def get_context_question(context, question):
     return CONTEXT_SPECIAL +  ' ' + context + ' ' + QUESTION_SPECIAL + ' ' + question
@@ -1482,10 +1543,15 @@ class JSON(CQA, data.Dataset):
             with open(os.path.expanduser(path)) as f:
                 lines = f.readlines()
                 for line in lines:
-                    ex = json.loads(line)
-                    context, question, answer = ex['context'], ex['question'], ex['answer']
+                    exJSON = json.loads(line)
+                    context, question, answer = exJSON['context'], exJSON['question'], exJSON['answer']
                     context_question = get_context_question(context, question) 
                     ex = data.Example.fromlist([context, question, answer, CONTEXT_SPECIAL, QUESTION_SPECIAL, context_question], fields)
+                   #Add other keys from json file as properties
+                    for key in exJSON:
+                        if key not in ["context","question","answer"]:
+                            setattr(ex,key,exJSON[key])
+                    
                     examples.append(ex)
                     if subsample is not None and len(examples) >= subsample: 
                         break
