@@ -173,6 +173,8 @@ def get_splits(args, task, FIELD, **kwargs):
     elif os.path.exists(os.path.join(args.data, task)):
         split = torchtext.datasets.generic.JSON.splits(
             fields=FIELD, root=args.data, name=task, **kwargs)
+    else:
+        raise FileNotFoundError(f"Dataset {task} not found at:"+os.path.join(args.data,task))
     return split
 
 
