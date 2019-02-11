@@ -89,7 +89,7 @@ def run(args, field, val_sets, model):
             prediction_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + '.txt')
             answer_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + '.gold.txt')
             results_file_name = answer_file_name.replace('gold', 'results')
-            if 'sql' in task or 'squad' in task:
+            if 'sql' in task or 'squad' in task.lower():
                 ids_file_name = answer_file_name.replace('gold', 'ids')
             if os.path.exists(prediction_file_name):
                 print('** ', prediction_file_name, ' already exists -- this is where predictions are stored **')
@@ -123,13 +123,13 @@ def run(args, field, val_sets, model):
                         _, p = model(batch)
                         p = field.reverse(p)
                         for i, pp in enumerate(p):
-                            if 'sql' in task:
+                            if 'sql' in task.lower():
                                 ids.append(int(batch.wikisql_id[i]))
                             if 'squad' in task:
                                 ids.append(it.dataset.q_ids[int(batch.squad_id[i])])
                             prediction_file.write(pp + '\n')
                             predictions.append(pp) 
-                if 'sql' in task:
+                if 'sql' in task.lower():
                     with open(ids_file_name, 'w') as id_file:
                         for i in ids:
                             id_file.write(json.dumps(i) + '\n')
@@ -140,7 +140,7 @@ def run(args, field, val_sets, model):
             else:
                 with open(prediction_file_name) as prediction_file:
                     predictions = [x.strip() for x in prediction_file.readlines()] 
-                if 'sql' in task or 'squad' in task:
+                if 'sql' in task.lower() or 'squad' in task:
                     with open(ids_file_name) as id_file:
                         ids = [int(x.strip()) for x in id_file.readlines()]
    
@@ -168,8 +168,10 @@ def run(args, field, val_sets, model):
     
             if len(answers) > 0:
                 if not os.path.exists(results_file_name) or args.overwrite:
-                    metrics, answers = compute_metrics(predictions, answers, bleu='iwslt' in task or 'multi30k' in task or args.bleu, dialogue='woz' in task,
-                        rouge='cnn' in task or 'dailymail' in task or args.rouge, logical_form='sql' in task, corpus_f1='zre' in task, args=args)
+
+                    #TODO:remove
+                    metrics, answers = compute_metrics(predictions, answers, bleu='iwslt' in task or 'multi30k' in task or args.bleu, dialogue='woz' in task or args.joint_goal_em,
+                        rouge='cnn' in task or 'dailymail' in task or args.rouge, logical_form='sql' in task or args.logical_form, corpus_f1='zre' in task, args=args)
                     with open(results_file_name, 'w') as results_file:
                         results_file.write(json.dumps(metrics) + '\n')
                 else:
@@ -200,8 +202,11 @@ def get_args():
     parser.add_argument('--data', default='/decaNLP/.data/', type=str, help='where to load data from.')
     parser.add_argument('--embeddings', default='/decaNLP/.embeddings', type=str, help='where to save embeddings.')
     parser.add_argument('--checkpoint_name')
+    #Metrics
     parser.add_argument('--bleu', action='store_true', help='whether to use the bleu metric (always on for iwslt)')
     parser.add_argument('--rouge', action='store_true', help='whether to use the bleu metric (always on for cnn, dailymail, and cnn_dailymail)')
+    parser.add_argument('--joint_goal_em', action='store_true', help='whether to use the joint goal em metric (always on for woz)')
+    parser.add_argument('--logical_form', action='store_true', help='whether the datasets are logical forms (so use logical form variant of EM. Always on for wikisql)')
     parser.add_argument('--overwrite', action='store_true', help='whether to overwrite previously written predictions')
     parser.add_argument('--silent', action='store_true', help='whether to print predictions to stdout')
 
