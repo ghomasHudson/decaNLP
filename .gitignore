@@ -1,8 +1,6 @@
+.data
+.embeddings
+__pycache__
+pretrained
 
-\.embeddings/
-
-\.data/
-
-__pycache__/
-
-results/
+\.dataPara/
