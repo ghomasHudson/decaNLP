@@ -1,0 +1,8 @@
+
+\.embeddings/
+
+\.data/
+
+__pycache__/
+
+results/
