@@ -122,8 +122,8 @@ def to_iter(args, world_size, val_batch_size, data, device, train=True, token_te
 
 
 def get_learning_rate(i, args):
-    transformer_lr = 1. / math.sqrt(args.dimension) * min(
     """Learning rate schedual"""
+    transformer_lr = 1. / math.sqrt(args.dimension) * min(
         1 / math.sqrt(i), i / (args.warmup * math.sqrt(args.warmup)))
     if 'adam' not in args.optimizer.lower():
         transformer_lr = transformer_lr * math.sqrt(args.dimension * args.warmup) * args.sgd_lr

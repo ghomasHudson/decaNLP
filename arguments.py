@@ -11,7 +11,8 @@ from dateutil import tz
 
 def get_commit():
     directory = os.path.dirname(sys.argv[0])
-    return subprocess.Popen("cd {} && git log | head -n 1".format(directory), shell=True, stdout=subprocess.PIPE).stdout.read().split()[1].decode()
+    return subprocess.Popen("git log | head -n 1".format(directory),shell=True,stdout=subprocess.PIPE).stdout.read().split()[1].decode()
+    #return subprocess.Popen("cd {} && git log | head -n 1".format(directory), shell=True, stdout=subprocess.PIPE).stdout.read().split()[1].decode()
 
 
 def save_args(args):
