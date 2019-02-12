@@ -1597,7 +1597,7 @@ class MSRPC(qaBase):
                 with open(os.path.expanduser(os.path.join(path, src_file_name))) as src_file:
                     reader = csv.DictReader(src_file, dialect='excel-tab',quoting=csv.QUOTE_NONE)
                     for ex in reader:
-                        ex = {'question':'Is this question a paraphrase of the context: "'+ex["#1 String"]+'" -- yes or no?',
+                        ex = {'question':'Is this sentence a paraphrase of the context: "'+ex["#1 String"]+'" -- yes or no?',
                             'context':ex["#2 String"],
                             'answer': ["no","yes"][int(list(ex.values())[0])]}
                         split_file.write(json.dumps(ex)+'\n')
