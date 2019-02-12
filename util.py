@@ -170,6 +170,12 @@ def get_splits(args, task, FIELD, **kwargs):
     elif 'zre' in task:
         split = torchtext.datasets.generic.ZeroShotRE.splits(
             fields=FIELD, root=args.data, **kwargs)
+    elif 'quora' in task:
+        split = torchtext.datasets.generic.Quora.splits(
+            fields=FIELD, root=args.data, **kwargs)
+    elif 'msrpc' in task:
+        split = torchtext.datasets.generic.MSRPC.splits(
+            fields=FIELD, root=args.data, **kwargs)
     elif os.path.exists(os.path.join(args.data, task)):
         split = torchtext.datasets.generic.JSON.splits(
             fields=FIELD, root=args.data, name=task, **kwargs)
