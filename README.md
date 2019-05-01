@@ -1,3 +1,10 @@
+# My Fork of decaNLP
+- Saves JSONL file of any cached data. This allows us to edit datasets 
+- Comments!
+- Additional tooling to examine pointers, attention etc...
+
+--------------------------------------------------------------------------------
+
 ![decaNLP Logo](decaNLP_logo.png)
 --------------------------------------------------------------------------------
 [![Build Status](https://travis-ci.org/salesforce/decaNLP.svg?branch=master)](https://travis-ci.org/salesforce/decaNLP)
