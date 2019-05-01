@@ -1597,9 +1597,9 @@ class MSRPC(qaBase):
                 with open(os.path.expanduser(os.path.join(path, src_file_name))) as src_file:
                     reader = csv.DictReader(src_file, dialect='excel-tab',quoting=csv.QUOTE_NONE)
                     for ex in reader:
-                        ex = {'question':'Is this sentence a paraphrase of the context: "'+ex["#1 String"]+'" -- yes or no?',
+                        ex = {'question':'"'+ex["#1 String"]+'" -- paraphrase or nonparaphrase?',
                             'context':ex["#2 String"],
-                            'answer': ["no","yes"][int(list(ex.values())[0])]}
+                            'answer': ["nonparaphrase","paraphrase"][int(list(ex.values())[0])]}
                         split_file.write(json.dumps(ex)+'\n')
        
     @classmethod
@@ -1643,9 +1643,9 @@ class Quora(qaBase):
             reader = csv.DictReader(tsvfile, dialect='excel-tab')
             examples = []
             for row in reader:
-                ex = {'question':'Is this question a paraphrase of the context: "'+row["question1"]+'" -- yes or no?',
+                ex = {'question':'"'+row["question1"]+'" -- paraphrase, or nonparaphrase?',
                       'context':row["question2"],
-                      'answer':["no","yes"][int(row["is_duplicate"])]}
+                      'answer':["nonparaphrase","paraphrase"][int(row["is_duplicate"])]}
                 examples.append(ex)
             
             #Split
