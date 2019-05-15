@@ -171,8 +171,9 @@ def get_splits(args, task, FIELD, **kwargs):
         split = torchtext.datasets.generic.ZeroShotRE.splits(
             fields=FIELD, root=args.data, **kwargs)
     elif 'quora' in task:
+        paraphraseQuestionType = task.split(".")[1]
         split = torchtext.datasets.generic.Quora.splits(
-            fields=FIELD, root=args.data, **kwargs)
+            fields=FIELD,paraphraseQuestionType=paraphraseQuestionType, root=args.data, **kwargs)
     elif 'msrpc' in task:
         split = torchtext.datasets.generic.MSRPC.splits(
             fields=FIELD, root=args.data, **kwargs)

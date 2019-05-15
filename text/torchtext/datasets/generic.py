@@ -1574,6 +1574,30 @@ class qaBase(CQA,data.Dataset):
 
         return tuple(d for d in (train_data,validation_data,test_data) if d is not None)
 
+    def makeSimpleBinaryQuestion(candidate1,candidate2,isParaphrase):
+        '''Form as a binary task (no question prompt to indicate paraphrase task)'''
+        return {
+                    "question": candidate1,
+                    "context" : candidate2,
+                    "answer"  : ["no","yes"][int(isParaphrase)]
+                }
+
+    def makeBinaryQuestion(candidate1,candidate2,isParaphrase):
+        '''Form as a binary question'''
+        return  {
+                "question": candidate1+'" -- paraphrase, or nonparaphrase?',
+                "context" : candidate2,
+                "answer"  : ["nonparaphrase","paraphrase"][int(isParaphrase)]
+            }
+
+    def makeSeq2Seq(candidate1,candidate2):
+        '''Form as a paraphrase generation task - must be a paraphrase!'''
+        return {
+                    "question":candidate1,
+                    "context" : "",
+                    "answer"  : candidate2
+                }
+
 class MSRPC(qaBase):
     '''Dataset loader for Microsoft Research Paraphrase Corpus'''
 
@@ -1585,7 +1609,7 @@ class MSRPC(qaBase):
     dirname = ''
 
     @classmethod
-    def cache_splits(cls, path, train='train', validation='val', test='test'):
+    def cache_splits(cls, path, train='train', validation='val', test='test',**kwargs):
         train_jsonl = os.path.expanduser(os.path.join(path, f'{train}.jsonl'))
         if os.path.exists(train_jsonl):
             return
@@ -1607,6 +1631,11 @@ class MSRPC(qaBase):
         #Change the default validation path
         return super().splits(*args,validation=validation,**kwargs) 
 
+
+# Ways of expressing paraphrasing:
+#   - binary: <paraphrase> -- paraphrase or nonparaphrase?
+
+
 class Quora(qaBase):
     '''Dataset loader for Quora paraphrase pairs'''
 
@@ -1619,7 +1648,7 @@ class Quora(qaBase):
         splits = np.cumsum(percentages)/100
         if splits[-1] != 1: raise ValueError("Percentages don't add up to 100")
         splits = splits[:-1]
-        splits *= len(l) #convert to indeces
+        splits *= len(l) #convert to indices
         splits += 0.5 #round up
         splits = splits.astype(np.int)
         return np.split(l, splits)
@@ -1630,12 +1659,13 @@ class Quora(qaBase):
         if os.path.exists(train_jsonl):
             return
 
+
         #Quora dataset comes without splits so partition:
         # - 90%-|_ 90% train
         #       |_ 10% validate
         #
         # - 10% test
-        
+
         filename = "quora_duplicate_questions.tsv"
         with open(os.path.expanduser(os.path.join(path,filename))) as tsvfile:
             
@@ -1643,9 +1673,16 @@ class Quora(qaBase):
             reader = csv.DictReader(tsvfile, dialect='excel-tab')
             examples = []
             for row in reader:
-                ex = {'question':'"'+row["question1"]+'" -- paraphrase, or nonparaphrase?',
-                      'context':row["question2"],
-                      'answer':["nonparaphrase","paraphrase"][int(row["is_duplicate"])]}
+                if cls.paraphraseQuestionType == "binarySimple":
+                    ex = cls.makeSimpleBinaryQuestion(row["question1"],row["question2"],row["is_duplicate"])
+                elif cls.paraphraseQuestionType == "binary":
+                    ex = cls.makeBinaryQuestion(row["question1"],row["question2"],row["is_duplicate"])
+                elif cls.paraphraseQuestionType == "seq2seqSimple":
+                    if row["is_duplicate"]:
+                        ex = cls.makeSeq2Seq(row["question1"],row["question2"])
+                else:
+                    raise Exception("Invalid question type")
+
                 examples.append(ex)
             
             #Split
@@ -1662,6 +1699,11 @@ class Quora(qaBase):
                     for line in split[1]:
                         split_file.write(json.dumps(line)+'\n')
 
+    @classmethod
+    def splits(cls,*args,paraphraseQuestionType,**kwargs):
+        cls.paraphraseQuestionType = paraphraseQuestionType
+        cls.name = "quora."+paraphraseQuestionType
+        return super().splits(*args,**kwargs) 
 
 
 class JSON(CQA, data.Dataset):
