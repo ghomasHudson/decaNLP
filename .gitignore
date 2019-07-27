@@ -4,5 +4,9 @@ __pycache__
 pretrained
 
 \.dataPara/
-
+\.dataPara2
+\.git.bak/
+\testRun1/
 results/
+
+testRun1/
