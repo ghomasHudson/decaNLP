@@ -1,5 +1,5 @@
 # docker build --no-cache  multitasking .
-FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04 
+FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 
 RUN apt-get update \
         && apt-get install -y --no-install-recommends \
@@ -15,7 +15,7 @@ RUN curl -o ~/miniconda.sh -O  https://repo.continuum.io/miniconda/Miniconda3-la
      chmod +x ~/miniconda.sh && \
      ~/miniconda.sh -b -p /opt/conda && \     
      rm ~/miniconda.sh && \
-     /opt/conda/bin/conda install conda-build python=3.6.3 numpy pyyaml mkl&& \
+     /opt/conda/bin/conda install conda-build python=3.6.3 numpy mkl&& \
      /opt/conda/bin/conda clean -ya 
 ENV PATH /opt/conda/bin:$PATH
 
@@ -27,7 +27,7 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en  
 ENV LC_ALL en_US.UTF-8
 
-RUN conda install -c pytorch pytorch=0.41 cuda90
+RUN conda install -c pytorch pytorch=1.1
 
 # Revtok
 RUN pip install -e git+https://github.com/jekbradbury/revtok.git#egg=revtok
@@ -37,20 +37,20 @@ RUN pip install tqdm
 RUN pip install nltk==3.2.5
 
 # tensorboard
-RUN pip install tensorboardX
-RUN pip install tensorboard
-RUN pip install tensorflow
-RUN pip install python-dateutil
+RUN echo "hi"
+RUN pip install --ignore-installed tensorboardX==1.6
+RUN pip install --ignore-installed tensorboard
+RUN pip install --ignore-installed tensorflow
+RUN pip install --ignore-installed python-dateutil
 
 # additional python packages
-RUN pip install ujson
-RUN pip install -e git+git://github.com/andersjo/pyrouge.git#egg=pyrouge
+RUN pip install --ignore-installed ujson
+RUN pip install --ignore-installed -e git+git://github.com/andersjo/pyrouge.git#egg=pyrouge
 RUN cd /src/pyrouge/pyrouge/../tools/ROUGE-1.5.5/data/ && rm WordNet-2.0.exc.db && ./WordNet-2.0-Exceptions/buildExeptionDB.pl ./WordNet-2.0-Exceptions ./smart_common_words.txt ./WordNet-2.0.exc.db && chmod 777 WordNet-2.0.exc.db
 #RUN pip install lxml
 RUN pip install sacrebleu
 
 # Install packages for XML processing
-RUN apt-get update
 RUN apt-get install --yes \
   expat \
   libexpat-dev \
@@ -66,6 +66,10 @@ RUN pip install records
 RUN pip install babel
 RUN pip install tabulate
 
+RUN pip install pip==8.1.1
 RUN pip install -e git+git://github.com/salesforce/cove.git#egg=cove
+RUN pip install allennlp
 
+RUN pip install --upgrade --no-deps --force-reinstall tensorboardX==1.6
 CMD bash 
+

@@ -1,6 +1,7 @@
 # docker build --no-cache  multitasking .
-FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04 
-
+FROM pytorch/pytorch:1.0-cuda10.0-cudnn7-devel
+#FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04 
+WORKDIR /
 RUN apt-get update \
         && apt-get install -y --no-install-recommends \
             git \
@@ -11,13 +12,13 @@ RUN apt-get update \
             curl \
             unzip
 
-RUN curl -o ~/miniconda.sh -O  https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh  && \
-     chmod +x ~/miniconda.sh && \
-     ~/miniconda.sh -b -p /opt/conda && \     
-     rm ~/miniconda.sh && \
-     /opt/conda/bin/conda install conda-build python=3.6.3 numpy pyyaml mkl&& \
-     /opt/conda/bin/conda clean -ya 
-ENV PATH /opt/conda/bin:$PATH
+#RUN curl -o ~/miniconda.sh -O  https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh  && \
+#     chmod +x ~/miniconda.sh && \
+#     ~/miniconda.sh -b -p /opt/conda && \     
+#     rm ~/miniconda.sh && \
+#     /opt/conda/bin/conda install conda-build python=3.6.3 numpy mkl&& \
+#     /opt/conda/bin/conda clean -ya 
+#ENV PATH /opt/conda/bin:$PATH
 
 # Default to utf-8 encodings in python
 # Can verify in container with:
@@ -27,7 +28,14 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en  
 ENV LC_ALL en_US.UTF-8
 
-RUN conda install -c pytorch pytorch=0.41 cuda90
+#RUN conda install -c fragcolor cuda10.0
+
+#Pytorch
+#RUN conda install -c pytorch pytorch=0.4.1
+#RUN conda install -c pytorch pytorch=1.0.1
+#RUN pip install https://download.pytorch.org/whl/cu100/torch-1.0.1.post2-cp35-cp35m-linux_x86_64.whl
+#RUN pip install http://vxlabs.com/downloads/torch-1.0.0a0+b5db6ac+20181206-cp37-cp37m-linux_x86_64.whl
+
 
 # Revtok
 RUN pip install -e git+https://github.com/jekbradbury/revtok.git#egg=revtok
@@ -50,7 +58,6 @@ RUN cd /src/pyrouge/pyrouge/../tools/ROUGE-1.5.5/data/ && rm WordNet-2.0.exc.db 
 RUN pip install sacrebleu
 
 # Install packages for XML processing
-RUN apt-get update
 RUN apt-get install --yes \
   expat \
   libexpat-dev \
@@ -67,5 +74,8 @@ RUN pip install babel
 RUN pip install tabulate
 
 RUN pip install -e git+git://github.com/salesforce/cove.git#egg=cove
+RUN pip install allennlp
+
+RUN pip install torchtext
 
 CMD bash 
