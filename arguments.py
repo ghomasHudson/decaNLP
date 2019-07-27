@@ -25,6 +25,10 @@ def parse():
     """
     Returns the arguments from the command line.
     """
+
+    #Print command used to begin script
+    print("Command used:"," ".join(sys.argv[:]))
+
     parser = ArgumentParser()
     parser.add_argument('--root', default='/decaNLP', type=str, help='root directory for data, results, embeddings, code, etc.')
     parser.add_argument('--data', default='.data/', type=str, help='where to load data from.')
