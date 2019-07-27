@@ -400,10 +400,13 @@ def compute_metrics(greedy, answer, rouge=False, bleu=False, corpus_f1=False, lo
         metric_keys.append('bleu')
         metric_values.append(bleu)
     if rouge:
-        rouge = computeROUGE(greedy, answer)
-        metric_keys += ['rouge1', 'rouge2', 'rougeL', 'avg_rouge']
-        avg_rouge = (rouge['rouge_1_f_score'] + rouge['rouge_2_f_score'] + rouge['rouge_l_f_score']) / 3
-        metric_values += [rouge['rouge_1_f_score'], rouge['rouge_2_f_score'], rouge['rouge_l_f_score'], avg_rouge]
+        try:
+            rouge = computeROUGE(greedy, answer)
+            metric_keys += ['rouge1', 'rouge2', 'rougeL', 'avg_rouge']
+            avg_rouge = (rouge['rouge_1_f_score'] + rouge['rouge_2_f_score'] + rouge['rouge_l_f_score']) / 3
+            metric_values += [rouge['rouge_1_f_score'], rouge['rouge_2_f_score'], rouge['rouge_l_f_score'], avg_rouge]
+        except:
+            print("ERROR: Could not compute rouge... ignoring")
     norm_greedy = [normalize_text(g) for g in greedy]
     norm_answer = [[normalize_text(a) for a in al] for al in answer]
     nf1 = computeF1(norm_greedy, norm_answer)
