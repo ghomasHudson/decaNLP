@@ -1,0 +1,1 @@
+python train.py --train_tasks quora.seq2seqSimple squad iwslt.en.de cnn_dailymail multinli.in.out sst srl zre woz.en wikisql schema --train_iterations 1 --train_batch_tokens 9000 --jump_start 75000 --n_jump_start 2 --val_every 1000 --save_every 5000 --name seq2seqTest4
