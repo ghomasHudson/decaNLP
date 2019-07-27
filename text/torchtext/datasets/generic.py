@@ -1657,7 +1657,8 @@ class Quora(qaBase):
     def cache_splits(cls,path,train='train',validation='dev',test='test'):
         train_jsonl = os.path.expanduser(os.path.join(path, f'{train}.jsonl'))
         if os.path.exists(train_jsonl):
-            return
+            pass
+            #return
 
 
         #Quora dataset comes without splits so partition:
@@ -1680,11 +1681,11 @@ class Quora(qaBase):
                 elif cls.paraphraseQuestionType == "seq2seqSimple":
                     if row["is_duplicate"]:
                         ex = cls.makeSeq2Seq(row["question1"],row["question2"])
+                    else:
+                        continue #skip appending example which is not a paraphrase
                 else:
                     raise Exception("Invalid question type")
-
                 examples.append(ex)
-            
             #Split
             percents = np.array([81,9,10])
             examples = np.array(examples)

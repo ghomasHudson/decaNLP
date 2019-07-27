@@ -89,7 +89,7 @@ def run(args, field, val_sets, model):
             prediction_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + '.txt')
             answer_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + '.gold.txt')
             results_file_name = answer_file_name.replace('gold', 'results')
-            if 'sql' in task or 'squad' in task.lower():
+            if 'sql' in task.lower() or 'squad' in task.lower():
                 ids_file_name = answer_file_name.replace('gold', 'ids')
             if os.path.exists(prediction_file_name):
                 print('** ', prediction_file_name, ' already exists -- this is where predictions are stored **')
@@ -109,18 +109,24 @@ def run(args, field, val_sets, model):
                             for l in results_file:
                                 print(l)
                         metrics = json.loads(results_file.readlines()[0])
-                        decaScore.append(metrics[args.task_to_metric[task]])
+                        try:
+                            decaScore.append(metrics[args.task_to_metric[task]])
+                        except:
+                            import warnings
+                            warnings.warn("Could not find metric for "+task)
                     continue
 
             for x in [prediction_file_name, answer_file_name, results_file_name]:
                 os.makedirs(os.path.dirname(x), exist_ok=True)
     
             if not os.path.exists(prediction_file_name) or args.overwrite:
+
+                attentions_files = {}
                 with open(prediction_file_name, 'w') as prediction_file:
                     predictions = []
                     ids = []
                     for batch_idx, batch in enumerate(it):
-                        _, p = model(batch)
+                        _, p,attentions = model(batch)
                         p = field.reverse(p)
                         for i, pp in enumerate(p):
                             if 'sql' in task.lower():
@@ -129,6 +135,26 @@ def run(args, field, val_sets, model):
                                 ids.append(it.dataset.q_ids[int(batch.squad_id[i])])
                             prediction_file.write(pp + '\n')
                             predictions.append(pp) 
+                        
+                        #Output attentions to file
+                        for key in attentions.keys():
+                            if key not in attentions_files.keys():
+                                attention_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + "." + key + '.txt')
+                                attentions_files[key] = open(attention_file_name,'w')
+                            attentions[key] = attentions[key].squeeze()
+                            for i in range(attentions[key].shape[0]):
+                                attnline = attentions[key][i].tolist()
+                                if type(attnline[0]) == float:
+                                    attnStr = ",".join([str(f) for f in attnline])
+                                else:
+                                    attnStr = ""
+                                    for subArr in attnline:
+                                        
+                                        attnStr+= "["+",".join([str(f) for f in subArr])+"],"
+                                    attnStr = attnStr[:-1]
+                                attentions_files[key].write(attnStr+"\n")
+
+
                 if 'sql' in task.lower():
                     with open(ids_file_name, 'w') as id_file:
                         for i in ids:
@@ -145,7 +171,8 @@ def run(args, field, val_sets, model):
                         ids = [int(x.strip()) for x in id_file.readlines()]
    
             def from_all_answers(an):
-                return [it.dataset.all_answers[sid] for sid in an.tolist()] 
+                print(list(it.dataset.all_answers))
+                return [list(it.dataset.all_answers)[sid] for sid in an.tolist()] 
     
             if not os.path.exists(answer_file_name) or args.overwrite:
                 with open(answer_file_name, 'w') as answer_file:
@@ -168,8 +195,6 @@ def run(args, field, val_sets, model):
     
             if len(answers) > 0:
                 if not os.path.exists(results_file_name) or args.overwrite:
-
-                    #TODO:remove
                     metrics, answers = compute_metrics(predictions, answers, bleu='iwslt' in task or 'multi30k' in task or args.bleu, dialogue='woz' in task or args.joint_goal_em,
                         rouge='cnn' in task or 'dailymail' in task or args.rouge, logical_form='sql' in task or args.logical_form, corpus_f1='zre' in task, args=args)
                     with open(results_file_name, 'w') as results_file:
@@ -182,11 +207,17 @@ def run(args, field, val_sets, model):
                     for i, (p, a) in enumerate(zip(predictions, answers)):
                         print(f'Prediction {i+1}: {p}\nAnswer {i+1}: {a}\n')
                     print(metrics)
-                decaScore.append(metrics[args.task_to_metric[task]])
-
+                try:
+                    decaScore.append(metrics[args.task_to_metric[task]])
+                except:
+                    import warnings
+                    print("Could not find metric for task:",task)
     print(f'Evaluated Tasks:\n')
     for i, (task, _) in enumerate(iters):
-        print(f'{task}: {decaScore[i]}')
+        try:
+            print(f'{task}: {decaScore[i]}')
+        except:
+            print("Couldn't find")
     print(f'-------------------')
     print(f'DecaScore:  {sum(decaScore)}\n')
     print(f'\nSummary: | {sum(decaScore)} | {" | ".join([str(x) for x in decaScore])} |\n')

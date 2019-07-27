@@ -5,6 +5,7 @@ import math
 import time
 import random
 import collections
+import sys
 from copy import deepcopy
 
 import logging
@@ -184,27 +185,30 @@ def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_
                             (args.load and iteration == start_iteration + 1))):
                         train_task_val_metric = None
                         for val_task_idx, (val_task, val_iter) in enumerate(val_iters):
-                            val_loss, metric_dict = validate(val_task, val_iter, model, logger, field, world_size, rank, num_print=args.num_print, args=args)
-                            if val_loss is not None:
-                                log_entry = f'{args.timestamp}:{elapsed_time(logger)}:iteration_{iteration}:{round_progress}train_{task}:{task_progress}val_{val_task}:val_loss{val_loss.item():.4f}:'
-                                writer.add_scalars(f'loss/val', {val_task: val_loss.item()}, iteration)
-                            else:
-                                log_entry = f'{args.timestamp}:{elapsed_time(logger)}:iteration_{iteration}:{round_progress}train_{task}:{task_progress}val_{val_task}:'
-                               
-                            metric_entry = ''
-                            for metric_key, metric_value in metric_dict.items():
-                                metric_entry += f'{metric_key}_{metric_value:.2f}:'
-                            metric_entry = metric_entry[:-1]
-                           
-                            # val log
-                            logger.info(log_entry + metric_entry)
-                            if writer is not None:
+                            try:
+                                val_loss, metric_dict = validate(val_task, val_iter, model, logger, field, world_size, rank, num_print=args.num_print, args=args)
+                                if val_loss is not None:
+                                    log_entry = f'{args.timestamp}:{elapsed_time(logger)}:iteration_{iteration}:{round_progress}train_{task}:{task_progress}val_{val_task}:val_loss{val_loss.item():.4f}:'
+                                    writer.add_scalars(f'loss/val', {val_task: val_loss.item()}, iteration)
+                                else:
+                                    log_entry = f'{args.timestamp}:{elapsed_time(logger)}:iteration_{iteration}:{round_progress}train_{task}:{task_progress}val_{val_task}:'
+                                   
+                                metric_entry = ''
                                 for metric_key, metric_value in metric_dict.items():
-                                    writer.add_scalars(f'val/{metric_key}', {val_task: metric_value}, iteration)
-                                    writer.add_scalars(f'{metric_key}/val', {val_task: metric_value}, iteration)
-                                    writer.add_scalars(f'{metric_key}/{val_task}', {'val': metric_value}, iteration)
-                                    writer.add_scalars(f'{val_task}/{metric_key}', {'val': metric_value}, iteration)
-                                    writer.add_scalars(f'{val_task}/val', {f'{metric_key}': metric_value}, iteration)
+                                    metric_entry += f'{metric_key}_{metric_value:.2f}:'
+                                metric_entry = metric_entry[:-1]
+                               
+                                # val log
+                                logger.info(log_entry + metric_entry)
+                                if writer is not None:
+                                    for metric_key, metric_value in metric_dict.items():
+                                        writer.add_scalars(f'val/{metric_key}', {val_task: metric_value}, iteration)
+                                        writer.add_scalars(f'{metric_key}/val', {val_task: metric_value}, iteration)
+                                        writer.add_scalars(f'{metric_key}/{val_task}', {'val': metric_value}, iteration)
+                                        writer.add_scalars(f'{val_task}/{metric_key}', {'val': metric_value}, iteration)
+                                        writer.add_scalars(f'{val_task}/val', {f'{metric_key}': metric_value}, iteration)
+                            except:
+                                logger.info("Error with validation... ignoring")
 
                     # saving
                     if save_every is not None and (iteration % args.save_every == 0 % args.save_every):
@@ -361,6 +365,8 @@ def main():
         return
     set_seed(args)
     logger = initialize_logger(args)
+
+    logger.info('Command Used: '+ " ".join(sys.argv[:]))
     logger.info(f'Arguments:\n{pformat(vars(args))}')
 
     #if loading from a checkpoint

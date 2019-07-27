@@ -187,9 +187,10 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
             loss = F.nll_loss(probs.log(), targets)
             return loss, None
         else:
-            return None, self.greedy(self_attended_context, final_context, final_question, 
+            output,attentions = self.greedy(self_attended_context, final_context, final_question, 
                 context_indices, question_indices,
-                oov_to_limited_idx, rnn_state=context_rnn_state).data
+                oov_to_limited_idx, rnn_state=context_rnn_state)
+            return None,output.data,attentions
  
     def reshape_rnn_state(self, h):
         return h.view(h.size(0) // 2, 2, h.size(1), h.size(2)) \
@@ -202,7 +203,6 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
         oov_to_limited_idx):
         """Get a probability distribution over the output vocab"""
         size = list(outputs.size())
-
         size[-1] = self.generative_vocab_size
         scores = generator(outputs.view(-1, outputs.size(-1))).view(size) #run the 
         p_vocab = F.softmax(scores, dim=scores.dim()-1)
@@ -236,6 +236,9 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
         eos_yet = context.new_zeros((B, )).byte()
     
         rnn_output, context_alignment, question_alignment = None, None, None
+
+        attentions = {}#{"vocab_pointer":[],"context_question_pointer":[],"context_attention":[],"question_attention":[]}
+
         for t in range(T):
             if t == 0:
                 #initialise with <init> token
@@ -262,10 +265,23 @@ class MultitaskQuestionAnsweringNetwork(nn.Module):
             preds = preds.squeeze(1)
             eos_yet = eos_yet | (preds == self.field.decoder_stoi['<eos>'])
             outs[:, t] = preds.cpu().apply_(self.map_to_full) #find the token
+
+            def catIfExists(key,newTensor):
+                '''concat tensor if something already there'''
+                if key not in attentions.keys():
+                    attentions[key] = newTensor
+                else:
+                    attentions[key] = torch.cat((attentions[key],newTensor),1)
+
+
+            catIfExists("vocab_pointer",vocab_pointer_switch)
+            catIfExists("context_question_pointer",context_question_switch)
+            catIfExists("context_attention",context_attention)
+            catIfExists("question_attention",question_attention)
+
             if eos_yet.all(): #if <eos> token, stop decoding
                 break
-        return outs
-
+        return outs,attentions
 
 
 class DualPtrRNNDecoder(nn.Module):

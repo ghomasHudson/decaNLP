@@ -32,12 +32,12 @@ def preprocess_examples(args, tasks, splits, field, logger=None, train=True):
             if len(s.examples) < l:
                 if logger is not None:
                     logger.info(f'Filtering out long {task} examples: {l} -> {len(s.examples)}')
-    
-            l = len(s.examples)
-            s.examples = [ex for ex in s.examples if not is_too_short(ex)]
-            if len(s.examples) < l:
-                if logger is not None:
-                   logger.info(f'Filtering out short {task} examples: {l} -> {len(s.examples)}')
+            if "quora" not in task: 
+                l = len(s.examples)
+                s.examples = [ex for ex in s.examples if not is_too_short(ex)]
+                if len(s.examples) < l:
+                    if logger is not None:
+                       logger.info(f'Filtering out short {task} examples: {l} -> {len(s.examples)}')
     
             l = len(s.examples)
             s.examples = [ex for ex in s.examples if 'This page includes the show' not in ex.answer]
@@ -49,8 +49,8 @@ def preprocess_examples(args, tasks, splits, field, logger=None, train=True):
             context_lengths = [len(ex.context) for ex in s.examples] 
             question_lengths = [len(ex.question) for ex in s.examples] 
             answer_lengths = [len(ex.answer) for ex in s.examples] 
-
-            logger.info(f'{task} context lengths (min, mean, max): {np.min(context_lengths)}, {int(np.mean(context_lengths))}, {np.max(context_lengths)}') 
+            if len(context_lengths) > 0:
+                logger.info(f'{task} context lengths (min, mean, max): {np.min(context_lengths)}, {int(np.mean(context_lengths))}, {np.max(context_lengths)}') 
             logger.info(f'{task} question lengths (min, mean, max): {np.min(question_lengths)}, {int(np.mean(question_lengths))}, {np.max(question_lengths)}')
             logger.info(f'{task} answer lengths (min, mean, max): {np.min(answer_lengths)}, {int(np.mean(answer_lengths))}, {np.max(answer_lengths)}')
 
