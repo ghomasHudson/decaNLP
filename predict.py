@@ -64,6 +64,8 @@ def to_iter(data, bs, device):
 def run(args, field, val_sets, model):
     device = set_seed(args)
     print(f'Preparing iterators')
+    print("WARNING: overwriting val_batch_size") # TODO: do we need this
+    args.val_batch_size = [args.val_batch_size[0]]
     if len(args.val_batch_size) == 1 and len(val_sets) > 1:
         args.val_batch_size *= len(val_sets)
     iters = [(name, to_iter(x, bs, device)) for name, x, bs in zip(args.tasks, val_sets, args.val_batch_size)]
