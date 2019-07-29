@@ -29,10 +29,10 @@ def getStringProperties(obj):
     '''Gets all properties of obj which are normal strings'''
     goodProps = []
     for prop in dir(obj):
-        if not prop.startswith('__'):
+        if not prop.startswith('__') and prop not in ["answer","question","context","context_question"]:
             val = getattr(obj,prop)
             if not callable(val):
-                if not type(val) == list:
+                if True or (not type(val) == list):
                     goodProps.append(prop)
     return goodProps
 
@@ -42,15 +42,19 @@ def tempTorchSave(obj,f):
     '''Output to plain json before saving'''
     #Do the origional torch save
     oldTorchSave(obj,f)
-    extra_props = {}
-    # import pdb;pdb.set_trace()
+    extra_props = []
     if type(obj) == tuple:
         #if a tuple, find a list of examples
         if type(obj) == dict:
             extra_props = obj[1] #second positon is extra metadata
         elif "woz" in f:
             extra_props = [{"lang_dialogue_turn": o[0], "answer": o[1]} for o in obj[1]]
-
+        elif "srl" in f:
+            extra_props = [{"answerSplits": o} for o in obj[1]]
+        elif "squad" in f:
+            extra_props = [{"answerSplits": o} for o in obj[1]]
+            for i,e in enumerate(extra_props):
+                e["q_id"] = obj[2][i]
         obj = obj[0]
         '''
         for item in obj:
@@ -69,8 +73,9 @@ def tempTorchSave(obj,f):
                     for prop in goodProps:
                         propClean = prop.replace("Raw","")
                         jsonOut[prop] = getattr(e,prop)
-                    for prop in extra_props[i-1].keys():
-                        jsonOut[prop] = extra_props[i-1][prop]
+                    if len(extra_props) > 0:
+                        for prop in extra_props[i-1].keys():
+                            jsonOut[prop] = extra_props[i-1][prop]
                     jsonF.write(json.dumps(jsonOut))
                     if i != len(obj):
                         jsonF.write("\n")
@@ -731,6 +736,7 @@ class SRL(CQA, data.Dataset):
         fields.append(('squad_id', FIELD))
 
         super(SRL, self).__init__(examples, fields, **kwargs)
+        import pdb;pdb.set_trace()
         self.all_answers = all_answers
 
 
@@ -1735,24 +1741,37 @@ class JSON(CQA, data.Dataset):
         # Add extra, task-specific fields
         FIELD = data.Field(batch_first=True, use_vocab=False, sequential=False,
             lower=False, numerical=True, eos_token=field.eos_token, init_token=field.init_token)
+
         is_wikisql = "wikisql" in path.lower()
         is_woz = "woz" in path.lower()
+        is_srl = "srl" in path.lower()
+        is_squad = "squad" in path.lower()
         if is_wikisql:
             fields.append(('wikisql_id', FIELD))
         elif is_woz:
             fields.append(('woz_id', FIELD))
+        elif is_srl:
+            fields.append(('squad_id', FIELD))
+        elif is_squad:
+            raise NotImplementedError("Squad gives incorrect performance - order seems to be different")
+            fields.append(('context_spans', FIELD))
+            fields.append(('answer_start', FIELD))
+            fields.append(('answer_end', FIELD))
+            fields.append(('squad_id', FIELD))
 
         cache_name = os.path.join(os.path.dirname(path), '.cache', os.path.basename(path), str(subsample))
 
         examples = []
         all_answers = []
-
+        q_ids = []
         if os.path.exists(cache_name):
             print(f'Loading cached data from {cache_name}')
             ret = torch.load(cache_name)
             if type(ret) == tuple:
                 examples =  ret[0]
                 all_answers = ret[1]
+                if len(ret) >= 3:
+                    q_ids = ret[2]
             else:
                 examples = ret
         else:
@@ -1768,6 +1787,14 @@ class JSON(CQA, data.Dataset):
                         info.append(exJSON["wikisql_id"])
                     elif is_woz:
                         info.append(exJSON["woz_id"])
+                    elif is_srl:
+                        info.append(exJSON["squad_id"])
+                    elif is_squad:
+                        info.append(exJSON["context_spans"])
+                        info.append(exJSON["answer_start"])
+                        info.append(exJSON["answer_end"])
+                        info.append(exJSON["squad_id"])
+
                     ex = data.Example.fromlist(info, fields)
 
                     #Add other keys from json file as properties
@@ -1777,6 +1804,15 @@ class JSON(CQA, data.Dataset):
                             setattr(ex,key,exJSON[key])
                         extra[key] = exJSON[key]
 
+                    if is_woz:
+                        #Woz has things as a tuple for some reason
+                        extra = (exJSON["lang_dialogue_turn"],exJSON["answer"])
+                    elif is_srl or is_squad:
+                        #Srl has things as the answer for some reason
+                        extra = exJSON["answerSplits"]
+
+                    if is_squad:
+                        q_ids.append(exJSON["q_id"])
                     examples.append(ex)
                     all_answers.append(extra)
                     if subsample is not None and len(examples) >= subsample:
@@ -1785,8 +1821,16 @@ class JSON(CQA, data.Dataset):
 
             os.makedirs(os.path.dirname(cache_name), exist_ok=True)
             print(f'Caching data to {cache_name}')
-            torch.save((examples,all_answers), cache_name)
+
+            #Save cache
+            dataToSave = [examples]
+            if len(all_answers) != 0:
+                dataToSave.append(all_answers)
+            if len(q_ids) != 0:
+                dataToSave.append(q_ids)
+            torch.save(tuple(dataToSave), cache_name)
         self.all_answers = all_answers
+        self.q_ids = q_ids
         super(JSON, self).__init__(examples, fields, **kwargs)
 
     @classmethod
