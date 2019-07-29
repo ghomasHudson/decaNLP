@@ -195,8 +195,8 @@ def run(args, field, val_sets, model):
     
             if len(answers) > 0:
                 if not os.path.exists(results_file_name) or args.overwrite:
-                    metrics, answers = compute_metrics(predictions, answers, bleu='iwslt' in task or 'multi30k' in task or args.bleu, dialogue='woz' in task or args.joint_goal_em,
-                        rouge='cnn' in task or 'dailymail' in task or args.rouge, logical_form='sql' in task or args.logical_form, corpus_f1='zre' in task, args=args)
+                    metrics, answers = compute_metrics(predictions, answers, bleu='iwslt' in task.lower() or 'multi30k' in task or args.bleu, dialogue='woz' in task.lower() or args.joint_goal_em,
+                        rouge='cnn' in task.lower() or 'dailymail' in task.lower() or args.rouge, logical_form='sql' in task.lower() or args.logical_form, corpus_f1='zre' in task.lower(), args=args)
                     with open(results_file_name, 'w') as results_file:
                         results_file.write(json.dumps(metrics) + '\n')
                 else:
@@ -273,6 +273,27 @@ def get_args():
         'woz.en': 'joint_goal_em',
         'zre': 'corpus_f1',
         'schema': 'em'}
+    # *****************
+    #  Add extra things for task variants
+    part_to_metric = {
+        "CNN": "avg_rouge",
+        "DAILYMAIL": "avg_rouge",
+        "IWSLT": "bleu",
+        "SST": "em",
+        "WIKISQL": "lfem",
+        "WOZ": "joint_goal_em",
+        "SCHEMA": "em",
+        "ZRE": "corpus_f1",
+        "SQUAD": "nf1",
+        "NLI": "em",
+        "SRL": "nf1"
+    }
+    for task in args.tasks:
+        for k in part_to_metric.keys():
+            if k in task:
+                args.task_to_metric[task] = part_to_metric[k]
+                break
+    # ****************
 
     if not args.checkpoint_name is None:
         args.best_checkpoint = os.path.join(args.path, args.checkpoint_name)
