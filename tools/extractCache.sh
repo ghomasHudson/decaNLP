@@ -36,4 +36,4 @@ MoveTask $2 SRL $1/srl/.cache/dev.jsonl/None.jsonl
 MoveTask $2 WIKISQL $1/wikisql/data/.cache/query_as_context/dev.jsonl/None.jsonl
 MoveTask $2 WOZ $1/woz/.cache/validate.jsonl/None/woz.en.jsonl
 MoveTask $2 ZRE $1/zre/relation_splits/.cache/dev.jsonl/None.jsonl
-
+MoveTask $2 SQUAD $1/squad/.cache/dev-v1.1.json/None.jsonl
