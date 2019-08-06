@@ -138,20 +138,21 @@ def run(args, field, val_sets, model):
                             prediction_file.write(pp + '\n')
                             predictions.append(pp) 
                         
-                        #Output attentions to file
-                        for key in attentions.keys():
-                            if key not in attentions_files.keys():
-                                attention_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + "." + key + '.txt')
-                                attentions_files[key] = open(attention_file_name,'w')
-                            attentions[key] = attentions[key].squeeze()
-                            for i in range(attentions[key].shape[0]):
-                                attnline = attentions[key][i].tolist()
-                                if type(attnline[0]) == float:
-                                    attnStr = ",".join([str(f) for f in attnline])
-                                else:
-                                    attnStr = ""
-                                    for subArr in attnline:
-                                        
+                        if args.store_attention:
+                            #Output attentions to file
+                            for key in attentions.keys():
+                                if key not in attentions_files.keys():
+                                    attention_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + "." + key + '.txt')
+                                    attentions_files[key] = open(attention_file_name,'w')
+                                attentions[key] = attentions[key].squeeze()
+                                for i in range(attentions[key].shape[0]):
+                                    attnline = attentions[key][i].tolist()
+                                    if type(attnline[0]) == float:
+                                        attnStr = ",".join([str(f) for f in attnline])
+                                    else:
+                                        attnStr = ""
+                                        for subArr in attnline:
+
                                         attnStr+= "["+",".join([str(f) for f in subArr])+"],"
                                     attnStr = attnStr[:-1]
                                 attentions_files[key].write(attnStr+"\n")
@@ -243,6 +244,7 @@ def get_args():
     parser.add_argument('--overwrite', action='store_true', help='whether to overwrite previously written predictions')
     parser.add_argument('--silent', action='store_true', help='whether to print predictions to stdout')
 
+    parser.add_argument('--store_attention', action='store_true', help='whether to output attention and pointer values')
     args = parser.parse_args()
 
     with open(os.path.join(args.path, 'config.json')) as config_file:
