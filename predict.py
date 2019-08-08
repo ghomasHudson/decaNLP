@@ -133,7 +133,7 @@ def run(args, field, val_sets, model):
                         for i, pp in enumerate(p):
                             if 'sql' in task.lower():
                                 ids.append(int(batch.wikisql_id[i]))
-                            if 'squad' in task:
+                            if 'squad' in task.lower():
                                 ids.append(it.dataset.q_ids[int(batch.squad_id[i])])
                             prediction_file.write(pp + '\n')
                             predictions.append(pp) 
@@ -162,14 +162,14 @@ def run(args, field, val_sets, model):
                     with open(ids_file_name, 'w') as id_file:
                         for i in ids:
                             id_file.write(json.dumps(i) + '\n')
-                if 'squad' in task:
+                if 'squad' in task.lower():
                     with open(ids_file_name, 'w') as id_file:
                         for i in ids:
                             id_file.write(i + '\n')
             else:
                 with open(prediction_file_name) as prediction_file:
                     predictions = [x.strip() for x in prediction_file.readlines()] 
-                if 'sql' in task.lower() or 'squad' in task:
+                if 'sql' in task.lower() or 'squad' in task.lower():
                     with open(ids_file_name) as id_file:
                         ids = [int(x.strip()) for x in id_file.readlines()]
    
