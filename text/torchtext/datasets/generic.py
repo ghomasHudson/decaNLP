@@ -1696,6 +1696,7 @@ class Quora(qaBase):
             reader = csv.DictReader(tsvfile, dialect='excel-tab')
             examples = []
             for row in reader:
+                row["is_duplicate"] = int(row["is_duplicate"])
                 if cls.paraphraseQuestionType == "binarySimple":
                     ex = cls.makeSimpleBinaryQuestion(row["question1"],row["question2"],row["is_duplicate"])
                 elif cls.paraphraseQuestionType == "binary":
