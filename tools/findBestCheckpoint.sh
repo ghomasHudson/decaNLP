@@ -29,7 +29,7 @@ do
     # Check if we've already done the evaluation
     if [ ! -f "$1/$(basename -s .pth $f)/valid_find_checkpoint/iwslt.en.de.results.txt" ]; then
         echo "  Evaluating..."
-        python predict.py "${@:2}" --path $1 --checkpoint_name `basename $f`  --evaluate valid_find_checkpoint
+        python predict.py "${@:2}" --path $1 --checkpoint_name `basename $f`  --evaluate valid_find_checkpoint --tasks squad iwslt.en.de multinli.in.out sst srl zre woz.en wikisql schema
     else
         echo "Using existing result..."
     fi
@@ -52,3 +52,8 @@ do
     echo "$iteration $sum" >> $sumsName
     echo "${file//[!0-9]/} ${RESULTS[*]}" >> $scoresName
 done
+
+echo
+echo
+echo "Individual scores saved to '$scoresName'"
+echo "Summed scores saved to '$sumsName'"

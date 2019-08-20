@@ -13,6 +13,19 @@ parser.add_argument('--task_name')
 parser.add_argument('--metric')
 args = parser.parse_args()
 
+part_to_metric = {
+    "CNN": "avg_rouge",
+    "DAILYMAIL": "avg_rouge",
+    "IWSLT": "bleu",
+    "SST": "em",
+    "WIKISQL": "lfem",
+    "WOZ": "joint_goal_em",
+    "SCHEMA": "em",
+    "ZRE": "corpus_f1",
+    "SQUAD": "nf1",
+    "MULTINLI": "em",
+    "SRL": "nf1"
+}
 
 orig_prompts = {
     "multinli": 'Hypothesis: "{sent}" -- entailment, neutral, or contradiction?',
@@ -41,16 +54,16 @@ def levenshteinDistance(s1, s2):
     return distances[-1]
 
 def sigfig(num):
-    return '%s' % float('%.3g' % num)
+    return '%s' % float('%.3f' % num)
 
 from pathlib import Path
-pathlist = Path(args.result_dir).glob(args.task_name+"*.results.txt")
+pathlist = Path(args.result_dir).glob("*.results.txt")
 for path in pathlist:
     res = json.loads(open(path,'r').readline())
     taskName = str(path.stem).split(".")[0]
     taskBase = ''.join(i for i in taskName.lower() if not i.isdigit())
     question = json.loads(open(os.path.join(args.data_dir,taskName,"val.jsonl"),'r').readline())["question"]
-
+    metric=part_to_metric[taskBase.upper()]
     dist = levenshteinDistance(question,orig_prompts[taskBase])
-    print(sigfig(res[args.metric]),"\t",sigfig(dist),"\t",question)
+    print(sigfig(dist),"\t",sigfig(res[metric]),"\t",question)
     # print(sigfig(res[args.metric])+","+sigfig(dist))
