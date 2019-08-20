@@ -736,7 +736,6 @@ class SRL(CQA, data.Dataset):
         fields.append(('squad_id', FIELD))
 
         super(SRL, self).__init__(examples, fields, **kwargs)
-        import pdb;pdb.set_trace()
         self.all_answers = all_answers
 
 
